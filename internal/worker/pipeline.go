@@ -64,11 +64,6 @@ func (p *Pipeline) process(bookID int64) error {
 		return fmt.Errorf("extract: %w", err)
 	}
 
-	// Update title from PDF metadata if available
-	if result.Title != "" {
-		p.db.Exec(`UPDATE books SET title = ?, updated_at = ? WHERE id = ?`, result.Title, time.Now(), bookID)
-	}
-
 	p.db.Exec(
 		`UPDATE books SET total_pages = ?, done_pages = 0, updated_at = ? WHERE id = ?`,
 		len(result.Pages), time.Now(), bookID,
