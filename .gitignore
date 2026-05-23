@@ -1,0 +1,20 @@
+# Environment
+.env
+
+# Runtime data
+data/
+storage/
+
+# Go build output
+ai-reader
+/ai-reader
+
+# Python
+__pycache__/
+*.pyc
+parser/__pycache__/
+
+# Editor
+.idea/
+.vscode/
+*.swp
