@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"ai-reader/internal/service"
+	"aksara/internal/service"
 
 	"github.com/labstack/echo/v4"
 )

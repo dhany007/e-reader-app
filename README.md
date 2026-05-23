@@ -1,4 +1,4 @@
-# AI Reader
+# Aksara
 
 Self-hosted AI-powered e-reader that translates English PDF books into natural Indonesian and serves them as a clean, mobile-friendly HTML reading experience.
 

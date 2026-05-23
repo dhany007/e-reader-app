@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"ai-reader/internal/config"
-	"ai-reader/internal/service"
+	"aksara/internal/config"
+	"aksara/internal/service"
 )
 
 type Pipeline struct {

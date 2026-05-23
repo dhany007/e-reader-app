@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"ai-reader/internal/service"
+	"aksara/internal/service"
 
 	"github.com/labstack/echo/v4"
 )

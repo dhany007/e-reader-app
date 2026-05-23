@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"ai-reader/internal/config"
-	appMiddleware "ai-reader/internal/middleware"
+	"aksara/internal/config"
+	appMiddleware "aksara/internal/middleware"
 
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/bcrypt"

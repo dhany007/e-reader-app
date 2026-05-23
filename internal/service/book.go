@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"ai-reader/internal/model"
+	"aksara/internal/model"
 
 	"github.com/google/uuid"
 )
