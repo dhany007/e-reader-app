@@ -23,7 +23,7 @@ func NewBookService(db *sql.DB, storageDir string) *BookService {
 	return &BookService{db: db, storageDir: storageDir}
 }
 
-func (s *BookService) Upload(file multipart.File, header *multipart.FileHeader, title, category string) (*model.Book, error) {
+func (s *BookService) Upload(file multipart.File, header *multipart.FileHeader, title string) (*model.Book, error) {
 	magic := make([]byte, 4)
 	if _, err := file.Read(magic); err != nil {
 		return nil, fmt.Errorf("read file: %w", err)
@@ -36,10 +36,8 @@ func (s *BookService) Upload(file multipart.File, header *multipart.FileHeader, 
 	}
 
 	if title == "" {
-		title = header.Filename
-	}
-	if category == "" {
-		category = "Uncategorized"
+		ext := filepath.Ext(header.Filename)
+		title = header.Filename[:len(header.Filename)-len(ext)]
 	}
 
 	pdfDir := filepath.Join(s.storageDir, "pdfs")
@@ -63,10 +61,10 @@ func (s *BookService) Upload(file multipart.File, header *multipart.FileHeader, 
 
 	book := &model.Book{}
 	err = s.db.QueryRow(
-		`INSERT INTO books (title, filename, category, status) VALUES (?, ?, ?, ?)
-		 RETURNING id, title, filename, category, status, total_pages, done_pages, created_at, updated_at`,
-		title, filename, category, model.StatusPending,
-	).Scan(&book.ID, &book.Title, &book.Filename, &book.Category, &book.Status,
+		`INSERT INTO books (title, filename, status) VALUES (?, ?, ?)
+		 RETURNING id, title, filename, status, total_pages, done_pages, created_at, updated_at`,
+		title, filename, model.StatusPending,
+	).Scan(&book.ID, &book.Title, &book.Filename, &book.Status,
 		&book.TotalPages, &book.DonePages, &book.CreatedAt, &book.UpdatedAt)
 	if err != nil {
 		os.Remove(destPath)
@@ -76,12 +74,36 @@ func (s *BookService) Upload(file multipart.File, header *multipart.FileHeader, 
 	return book, nil
 }
 
-func (s *BookService) List() ([]*model.Book, error) {
-	rows, err := s.db.Query(
-		`SELECT id, title, filename, category, status, total_pages, done_pages,
-		        COALESCE(error_msg, ''), created_at, updated_at
-		 FROM books ORDER BY created_at DESC`,
-	)
+func (s *BookService) List(shelfID int64) ([]*model.Book, error) {
+	var rows *sql.Rows
+	var err error
+
+	if shelfID < 0 {
+		// Uncategorized: shelf_id IS NULL
+		rows, err = s.db.Query(
+			`SELECT b.id, b.title, b.filename, b.shelf_id, COALESCE(sh.name,''), b.status,
+			        b.total_pages, b.done_pages, COALESCE(b.error_msg,''), b.created_at, b.updated_at
+			 FROM books b LEFT JOIN shelves sh ON sh.id = b.shelf_id
+			 WHERE b.shelf_id IS NULL
+			 ORDER BY b.created_at DESC`,
+		)
+	} else if shelfID > 0 {
+		rows, err = s.db.Query(
+			`SELECT b.id, b.title, b.filename, b.shelf_id, COALESCE(sh.name,''), b.status,
+			        b.total_pages, b.done_pages, COALESCE(b.error_msg,''), b.created_at, b.updated_at
+			 FROM books b LEFT JOIN shelves sh ON sh.id = b.shelf_id
+			 WHERE b.shelf_id = ?
+			 ORDER BY b.created_at DESC`, shelfID,
+		)
+	} else {
+		// shelfID == 0: all books
+		rows, err = s.db.Query(
+			`SELECT b.id, b.title, b.filename, b.shelf_id, COALESCE(sh.name,''), b.status,
+			        b.total_pages, b.done_pages, COALESCE(b.error_msg,''), b.created_at, b.updated_at
+			 FROM books b LEFT JOIN shelves sh ON sh.id = b.shelf_id
+			 ORDER BY b.created_at DESC`,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +112,7 @@ func (s *BookService) List() ([]*model.Book, error) {
 	var books []*model.Book
 	for rows.Next() {
 		b := &model.Book{}
-		if err := rows.Scan(&b.ID, &b.Title, &b.Filename, &b.Category, &b.Status,
+		if err := rows.Scan(&b.ID, &b.Title, &b.Filename, &b.ShelfID, &b.ShelfName, &b.Status,
 			&b.TotalPages, &b.DonePages, &b.ErrorMsg, &b.CreatedAt, &b.UpdatedAt); err != nil {
 			return nil, err
 		}
@@ -102,10 +124,11 @@ func (s *BookService) List() ([]*model.Book, error) {
 func (s *BookService) GetByID(id int64) (*model.Book, error) {
 	b := &model.Book{}
 	err := s.db.QueryRow(
-		`SELECT id, title, filename, category, status, total_pages, done_pages,
-		        COALESCE(error_msg, ''), created_at, updated_at
-		 FROM books WHERE id = ?`, id,
-	).Scan(&b.ID, &b.Title, &b.Filename, &b.Category, &b.Status,
+		`SELECT b.id, b.title, b.filename, b.shelf_id, COALESCE(sh.name,''), b.status,
+		        b.total_pages, b.done_pages, COALESCE(b.error_msg,''), b.created_at, b.updated_at
+		 FROM books b LEFT JOIN shelves sh ON sh.id = b.shelf_id
+		 WHERE b.id = ?`, id,
+	).Scan(&b.ID, &b.Title, &b.Filename, &b.ShelfID, &b.ShelfName, &b.Status,
 		&b.TotalPages, &b.DonePages, &b.ErrorMsg, &b.CreatedAt, &b.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -124,16 +147,13 @@ func (s *BookService) Delete(id int64) error {
 	return err
 }
 
-func (s *BookService) PDFPath(filename string) string {
-	return filepath.Join(s.storageDir, "pdfs", filename)
-}
-
-// UpdateStatus is called by the pipeline to update book state.
-func (s *BookService) UpdateStatus(id int64, status model.BookStatus, errMsg string) {
-	s.db.Exec(
-		`UPDATE books SET status = ?, error_msg = ?, updated_at = ? WHERE id = ?`,
-		status, errMsg, time.Now(), id,
-	)
+func (s *BookService) MoveBook(bookID, shelfID int64) error {
+	if shelfID == 0 {
+		_, err := s.db.Exec(`UPDATE books SET shelf_id = NULL, updated_at = ? WHERE id = ?`, time.Now(), bookID)
+		return err
+	}
+	_, err := s.db.Exec(`UPDATE books SET shelf_id = ?, updated_at = ? WHERE id = ?`, shelfID, time.Now(), bookID)
+	return err
 }
 
 func (s *BookService) GetPage(bookID int64, pageNum int) (*model.Page, error) {
@@ -167,4 +187,51 @@ func (s *BookService) SaveProgress(bookID int64, scrollPct float64) error {
 		bookID, scrollPct,
 	)
 	return err
+}
+
+// --- Shelf methods ---
+
+func (s *BookService) ListShelves() ([]*model.Shelf, error) {
+	rows, err := s.db.Query(
+		`SELECT sh.id, sh.name, COUNT(b.id), sh.created_at
+		 FROM shelves sh
+		 LEFT JOIN books b ON b.shelf_id = sh.id
+		 GROUP BY sh.id
+		 ORDER BY sh.name`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var shelves []*model.Shelf
+	for rows.Next() {
+		sh := &model.Shelf{}
+		if err := rows.Scan(&sh.ID, &sh.Name, &sh.BookCount, &sh.CreatedAt); err != nil {
+			return nil, err
+		}
+		shelves = append(shelves, sh)
+	}
+	return shelves, rows.Err()
+}
+
+func (s *BookService) CreateShelf(name string) (*model.Shelf, error) {
+	sh := &model.Shelf{}
+	err := s.db.QueryRow(
+		`INSERT INTO shelves (name) VALUES (?) RETURNING id, name, created_at`, name,
+	).Scan(&sh.ID, &sh.Name, &sh.CreatedAt)
+	return sh, err
+}
+
+func (s *BookService) DeleteShelf(id int64) error {
+	// Books on this shelf become uncategorized (shelf_id set to NULL via ON DELETE SET NULL)
+	_, err := s.db.Exec(`DELETE FROM shelves WHERE id = ?`, id)
+	return err
+}
+
+func (s *BookService) UpdateStatus(id int64, status model.BookStatus, errMsg string) {
+	s.db.Exec(
+		`UPDATE books SET status = ?, error_msg = ?, updated_at = ? WHERE id = ?`,
+		status, errMsg, time.Now(), id,
+	)
 }

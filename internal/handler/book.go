@@ -21,7 +21,6 @@ func NewBookHandler(svc *service.BookService, pipeline *worker.Pipeline) *BookHa
 
 func (h *BookHandler) Upload(c echo.Context) error {
 	title := c.FormValue("title")
-	category := c.FormValue("category")
 
 	file, header, err := c.Request().FormFile("file")
 	if err != nil {
@@ -29,7 +28,7 @@ func (h *BookHandler) Upload(c echo.Context) error {
 	}
 	defer file.Close()
 
-	book, err := h.svc.Upload(file, header, title, category)
+	book, err := h.svc.Upload(file, header, title)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
@@ -40,7 +39,7 @@ func (h *BookHandler) Upload(c echo.Context) error {
 }
 
 func (h *BookHandler) List(c echo.Context) error {
-	books, err := h.svc.List()
+	books, err := h.svc.List(0)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
@@ -76,6 +75,23 @@ func (h *BookHandler) Delete(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *BookHandler) MoveBook(c echo.Context) error {
+	bookID, err := parseID(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+	var body struct {
+		ShelfID int64 `json:"shelf_id"`
+	}
+	if err := c.Bind(&body); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+	}
+	if err := h.svc.MoveBook(bookID, body.ShelfID); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"ok": "true"})
 }
 
 func parseID(c echo.Context) (int64, error) {

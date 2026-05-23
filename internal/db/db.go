@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -20,7 +21,6 @@ func Init(dataDir string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	// SQLite is single-writer; one connection avoids SQLITE_BUSY errors
 	db.SetMaxOpenConns(1)
 
 	if err := migrate(db); err != nil {
@@ -32,16 +32,29 @@ func Init(dataDir string) (*sql.DB, error) {
 }
 
 func migrate(db *sql.DB) error {
-	_, err := db.Exec(schema)
-	return err
+	if _, err := db.Exec(schema); err != nil {
+		return err
+	}
+	// Add shelf_id column to books if not present (idempotent ALTER)
+	if _, err := db.Exec(`ALTER TABLE books ADD COLUMN shelf_id INTEGER REFERENCES shelves(id) ON DELETE SET NULL`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	return nil
 }
 
 const schema = `
+CREATE TABLE IF NOT EXISTS shelves (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT    NOT NULL UNIQUE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS books (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     title       TEXT    NOT NULL,
     filename    TEXT    NOT NULL,
-    category    TEXT    NOT NULL DEFAULT 'Uncategorized',
     status      TEXT    NOT NULL DEFAULT 'pending',
     total_pages INTEGER NOT NULL DEFAULT 0,
     done_pages  INTEGER NOT NULL DEFAULT 0,

@@ -7,7 +7,8 @@
       "PowerShell(wsl -d Ubuntu-24.04 -- bash -c \"cd /home/dhany/workspace/projects/e-reader-app && PATH=/usr/local/go/bin:$PATH go build ./cmd/server/ 2>&1\")",
       "PowerShell(wsl -d Ubuntu-24.04 -- bash -c \"cd /home/dhany/workspace/projects/e-reader-app && PATH=/usr/local/go/bin:$PATH go mod tidy && PATH=/usr/local/go/bin:$PATH go build ./cmd/server/ 2>&1\")",
       "PowerShell(wsl -d Ubuntu-24.04 -- bash -c \"cd /home/dhany/workspace/projects/e-reader-app && PATH=/usr/local/go/bin:$PATH go build ./... 2>&1\")",
-      "Bash(go build *)"
+      "Bash(go build *)",
+      "Bash(python3 -c \"import bcrypt; print\\(bcrypt.hashpw\\(b'contoh123', bcrypt.gensalt\\(10\\)\\).decode\\(\\)\\)\")"
     ]
   }
 }

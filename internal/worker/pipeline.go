@@ -37,6 +37,11 @@ type extractedPage struct {
 	Text string `json:"text"`
 }
 
+type extractResult struct {
+	Title string          `json:"title"`
+	Pages []extractedPage `json:"pages"`
+}
+
 // Process runs the full pipeline for a book. Meant to be called in a goroutine.
 func (p *Pipeline) Process(bookID int64) {
 	if err := p.process(bookID); err != nil {
@@ -54,17 +59,22 @@ func (p *Pipeline) process(bookID int64) error {
 
 	// Step 1: extract text from PDF via Python subprocess
 	p.setStatus(bookID, "extracting")
-	pages, err := p.extract(pdfPath)
+	result, err := p.extract(pdfPath)
 	if err != nil {
 		return fmt.Errorf("extract: %w", err)
 	}
 
+	// Update title from PDF metadata if available
+	if result.Title != "" {
+		p.db.Exec(`UPDATE books SET title = ?, updated_at = ? WHERE id = ?`, result.Title, time.Now(), bookID)
+	}
+
 	p.db.Exec(
 		`UPDATE books SET total_pages = ?, done_pages = 0, updated_at = ? WHERE id = ?`,
-		len(pages), time.Now(), bookID,
+		len(result.Pages), time.Now(), bookID,
 	)
 
-	for _, pg := range pages {
+	for _, pg := range result.Pages {
 		if err := p.saveRawPage(bookID, pg.Page, pg.Text); err != nil {
 			return fmt.Errorf("save raw page %d: %w", pg.Page, err)
 		}
@@ -74,7 +84,7 @@ func (p *Pipeline) process(bookID int64) error {
 	p.setStatus(bookID, "translating")
 	ctx := context.Background()
 
-	for _, pg := range pages {
+	for _, pg := range result.Pages {
 		if pg.Text == "" {
 			p.incrementDone(bookID)
 			continue
@@ -96,7 +106,7 @@ func (p *Pipeline) process(bookID int64) error {
 	return nil
 }
 
-func (p *Pipeline) extract(pdfPath string) ([]extractedPage, error) {
+func (p *Pipeline) extract(pdfPath string) (*extractResult, error) {
 	cmd := exec.Command(p.pythonBin, p.parserScript, pdfPath)
 	out, err := cmd.Output()
 	if err != nil {
@@ -106,11 +116,11 @@ func (p *Pipeline) extract(pdfPath string) ([]extractedPage, error) {
 		return nil, err
 	}
 
-	var pages []extractedPage
-	if err := json.Unmarshal(out, &pages); err != nil {
+	var result extractResult
+	if err := json.Unmarshal(out, &result); err != nil {
 		return nil, fmt.Errorf("parse output: %w", err)
 	}
-	return pages, nil
+	return &result, nil
 }
 
 func (p *Pipeline) getFilename(bookID int64) (string, error) {

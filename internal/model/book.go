@@ -16,7 +16,8 @@ type Book struct {
 	ID         int64
 	Title      string
 	Filename   string
-	Category   string
+	ShelfID    *int64
+	ShelfName  string
 	Status     BookStatus
 	TotalPages int
 	DonePages  int

@@ -3,14 +3,16 @@ import json
 import fitz  # PyMuPDF
 
 
-def extract_pages(pdf_path: str) -> list:
+def extract(pdf_path: str) -> dict:
     doc = fitz.open(pdf_path)
+    meta = doc.metadata or {}
+    title = (meta.get("title") or "").strip()
     pages = []
     for i, page in enumerate(doc):
         text = page.get_text("text").strip()
         pages.append({"page": i + 1, "text": text})
     doc.close()
-    return pages
+    return {"title": title, "pages": pages}
 
 
 if __name__ == "__main__":
@@ -19,7 +21,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        result = extract_pages(sys.argv[1])
+        result = extract(sys.argv[1])
         print(json.dumps(result))
     except Exception as e:
         print(json.dumps({"error": str(e)}), file=sys.stderr)

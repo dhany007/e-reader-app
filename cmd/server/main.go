@@ -62,6 +62,7 @@ func main() {
 	bookHandler := handler.NewBookHandler(bookSvc, pipeline)
 	authHandler := handler.NewAuthHandler(cfg)
 	readerHandler := handler.NewReaderHandler(bookSvc)
+	shelfHandler := handler.NewShelfHandler(bookSvc)
 
 	e := echo.New()
 	e.HideBanner = true
@@ -89,6 +90,9 @@ func main() {
 	g.GET("/books/:id/pages/:num", readerHandler.GetPage)
 	g.POST("/books/:id/progress", readerHandler.SaveProgress)
 	g.GET("/books/:id/progress", readerHandler.GetProgress)
+	g.POST("/books/:id/shelf", bookHandler.MoveBook)
+	g.POST("/shelves", shelfHandler.Create)
+	g.DELETE("/shelves/:id", shelfHandler.Delete)
 
 	log.Printf("server starting on :%s", cfg.Port)
 	e.Logger.Fatal(e.Start(":" + cfg.Port))

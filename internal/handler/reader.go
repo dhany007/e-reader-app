@@ -9,6 +9,8 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+const shelfUncategorized = int64(-1)
+
 type ReaderHandler struct {
 	svc *service.BookService
 }
@@ -18,12 +20,24 @@ func NewReaderHandler(svc *service.BookService) *ReaderHandler {
 }
 
 func (h *ReaderHandler) Library(c echo.Context) error {
-	books, err := h.svc.List()
+	// Parse shelf filter: 0=all, -1=uncategorized, N=specific shelf
+	shelfID := int64(0)
+	if s := c.QueryParam("shelf"); s != "" {
+		shelfID, _ = strconv.ParseInt(s, 10, 64)
+	}
+
+	books, err := h.svc.List(shelfID)
+	if err != nil {
+		return err
+	}
+	shelves, err := h.svc.ListShelves()
 	if err != nil {
 		return err
 	}
 	return c.Render(http.StatusOK, "library.html", map[string]interface{}{
-		"books": books,
+		"books":         books,
+		"shelves":       shelves,
+		"activeShelfID": shelfID,
 	})
 }
 

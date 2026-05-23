@@ -7,111 +7,157 @@
     <title>{{.book.Title}} — AI Reader</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .prose h2 { font-size: 1.25rem; font-weight: 700; margin: 1.5rem 0 0.75rem; color: #e5e7eb; }
-        .prose h3 { font-size: 1.1rem; font-weight: 600; margin: 1.25rem 0 0.5rem; color: #d1d5db; }
-        .prose p  { margin: 0 0 1rem; line-height: 1.8; color: #d1d5db; }
-        .prose pre { background: #111827; border: 1px solid #374151; border-radius: 0.5rem; padding: 1rem; overflow-x: auto; margin: 1rem 0; }
-        .prose pre code { font-family: 'Courier New', monospace; font-size: 0.85rem; color: #86efac; }
-        .prose code:not(pre code) { background: #1f2937; padding: 0.15em 0.4em; border-radius: 0.25rem; font-size: 0.875em; color: #86efac; }
-        .prose ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; color: #d1d5db; }
-        .prose ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 1rem; color: #d1d5db; }
-        .prose li { margin-bottom: 0.25rem; line-height: 1.7; }
+        body { font-size: var(--font-size, 1rem); }
+        .prose h2 { font-size: 1.2em; font-weight: 700; margin: 1.75rem 0 0.75rem; color: #e5e7eb; }
+        .prose h3 { font-size: 1.05em; font-weight: 600; margin: 1.25rem 0 0.5rem; color: #d1d5db; }
+        .prose p  { margin: 0 0 1.1rem; line-height: 1.85; color: #c9d1d9; }
+        .prose pre { background: #0d1117; border: 1px solid #30363d; border-radius: 0.5rem; padding: 1rem; overflow-x: auto; margin: 1.1rem 0; }
+        .prose pre code { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.85em; color: #79c0ff; white-space: pre; }
+        .prose code:not(pre code) { background: #161b22; padding: 0.15em 0.4em; border-radius: 0.25rem; font-size: 0.875em; color: #79c0ff; }
+        .prose ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; color: #c9d1d9; }
+        .prose ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 1rem; color: #c9d1d9; }
+        .prose li { margin-bottom: 0.3rem; line-height: 1.75; }
+        .prose strong { color: #e6edf3; }
+        .prose blockquote { border-left: 3px solid #30363d; padding-left: 1rem; color: #8b949e; margin: 1rem 0; font-style: italic; }
+        .page-divider { border-color: #21262d; }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-200 min-h-screen">
 
     <!-- Header -->
-    <header class="sticky top-0 z-10 bg-gray-950/90 backdrop-blur border-b border-gray-800 px-4 py-3 flex items-center gap-3">
-        <a href="/library" class="text-gray-400 hover:text-white transition p-1 -ml-1" aria-label="Kembali">
+    <header class="sticky top-0 z-10 bg-gray-950/90 backdrop-blur border-b border-gray-800 px-3 sm:px-5 py-3 flex items-center gap-2">
+        <a href="/library" class="shrink-0 text-gray-400 hover:text-white transition p-1 -ml-1" aria-label="Kembali">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
         </a>
         <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium truncate">{{.book.Title}}</div>
-            <div id="page-indicator" class="text-xs text-gray-500"></div>
+            <div class="text-sm font-medium truncate text-gray-100">{{.book.Title}}</div>
+            <div id="page-indicator" class="text-xs text-gray-500 mt-0.5"></div>
+        </div>
+        <!-- Font size control -->
+        <div class="flex items-center gap-1 shrink-0">
+            <button id="font-down" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm transition" title="Perkecil teks">A−</button>
+            <button id="font-up"   class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm transition" title="Perbesar teks">A+</button>
         </div>
     </header>
 
     <!-- Content -->
     <main class="max-w-2xl mx-auto px-4 sm:px-6 py-8 pb-24">
         <div id="content" class="prose"></div>
-        <div id="loader" class="hidden text-center py-8">
-            <div class="inline-block w-5 h-5 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin"></div>
+        <div id="loader" class="hidden text-center py-10">
+            <div class="inline-block w-6 h-6 border-2 border-gray-700 border-t-blue-500 rounded-full animate-spin"></div>
         </div>
-        <div id="end-msg" class="hidden text-center text-gray-600 text-sm py-8">— Selesai —</div>
+        <div id="end-msg" class="hidden text-center text-gray-600 text-sm py-10 tracking-wide">— Selesai —</div>
     </main>
+
+    <!-- Scroll to top -->
+    <button id="scroll-top"
+        class="hidden fixed bottom-6 right-4 sm:right-6 w-10 h-10 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-full shadow-lg flex items-center justify-center text-gray-300 transition z-20"
+        title="Ke atas" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+        </svg>
+    </button>
 
     <script>
     const BOOK_ID = {{.book.ID}};
-    const TOTAL = {{.book.TotalPages}};
+    const TOTAL   = {{.book.TotalPages}};
     let current = 0;
     let loading = false;
     let progressRestored = false;
     let savedScrollY = 0;
 
+    // --- Font size ---
+    const SIZES = [0.85, 0.95, 1, 1.1, 1.2, 1.35];
+    let sizeIdx = parseInt(localStorage.getItem('reader-font-idx') || '2', 10);
+    const applyFont = () => {
+        document.documentElement.style.setProperty('--font-size', SIZES[sizeIdx] + 'rem');
+        localStorage.setItem('reader-font-idx', sizeIdx);
+    };
+    applyFont();
+    document.getElementById('font-down').addEventListener('click', () => {
+        if (sizeIdx > 0) { sizeIdx--; applyFont(); }
+    });
+    document.getElementById('font-up').addEventListener('click', () => {
+        if (sizeIdx < SIZES.length - 1) { sizeIdx++; applyFont(); }
+    });
+
+    // --- Page loading ---
     async function loadPage(num) {
         if (num < 1 || num > TOTAL || loading) return;
         loading = true;
         document.getElementById('loader').classList.remove('hidden');
 
-        const res = await fetch(`/books/${BOOK_ID}/pages/${num}`);
-        if (res.ok) {
-            const data = await res.json();
-            const div = document.createElement('div');
-            div.className = 'mb-8 pb-8 border-b border-gray-800 last:border-0';
-            div.dataset.page = num;
-            div.innerHTML = data.html;
-            document.getElementById('content').appendChild(div);
-            current = num;
-            updateIndicator();
+        try {
+            const res = await fetch(`/books/${BOOK_ID}/pages/${num}`);
+            if (res.ok) {
+                const data = await res.json();
+                const div = document.createElement('div');
+                div.className = 'mb-6 pb-6 border-b border-gray-800 page-divider last:border-0';
+                div.dataset.page = num;
+                div.innerHTML = data.html;
+                document.getElementById('content').appendChild(div);
+                current = num;
+                updateIndicator();
 
-            if (!progressRestored && savedScrollY > 0) {
-                progressRestored = true;
-                window.scrollTo({ top: savedScrollY, behavior: 'instant' });
-            }
+                if (!progressRestored && savedScrollY > 0) {
+                    progressRestored = true;
+                    window.scrollTo({ top: savedScrollY, behavior: 'instant' });
+                }
 
-            if (num >= TOTAL) {
-                document.getElementById('loader').classList.add('hidden');
-                document.getElementById('end-msg').classList.remove('hidden');
+                if (num >= TOTAL) {
+                    document.getElementById('loader').classList.add('hidden');
+                    document.getElementById('end-msg').classList.remove('hidden');
+                }
             }
+        } finally {
+            loading = false;
+            document.getElementById('loader').classList.add('hidden');
         }
-
-        loading = false;
-        document.getElementById('loader').classList.add('hidden');
     }
 
     function updateIndicator() {
-        const el = document.getElementById('page-indicator');
-        if (TOTAL > 0) el.textContent = `Halaman ${current} / ${TOTAL}`;
+        if (TOTAL > 0) {
+            document.getElementById('page-indicator').textContent = `${current} / ${TOTAL} halaman`;
+        }
     }
 
     async function restoreProgress() {
-        const res = await fetch(`/books/${BOOK_ID}/progress`);
-        if (res.ok) {
-            const data = await res.json();
-            if (data.scroll_pct > 0) {
-                savedScrollY = data.scroll_pct * (document.documentElement.scrollHeight - window.innerHeight);
+        try {
+            const res = await fetch(`/books/${BOOK_ID}/progress`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.scroll_pct > 0) {
+                    savedScrollY = data.scroll_pct * (document.documentElement.scrollHeight - window.innerHeight);
+                }
             }
-        }
+        } catch (_) {}
         await loadPage(1);
-        // If no saved position, progressRestored stays false but that's fine
         if (savedScrollY === 0) progressRestored = true;
     }
 
-    // Lazy load on scroll
+    // --- Scroll events ---
+    const scrollTopBtn = document.getElementById('scroll-top');
     let saveTimer;
+
     window.addEventListener('scroll', () => {
-        // Load next page when within 600px of bottom
-        const distFromBottom = document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
-        if (distFromBottom < 600 && !loading && current < TOTAL) {
+        const scrollY   = window.scrollY;
+        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+
+        // Lazy load next page
+        if (document.documentElement.scrollHeight - scrollY - window.innerHeight < 600 && !loading && current < TOTAL) {
             loadPage(current + 1);
         }
 
-        // Save progress (debounced, every 2s)
+        // Scroll-to-top visibility
+        scrollTopBtn.classList.toggle('hidden', scrollY < 400);
+        scrollTopBtn.classList.toggle('flex', scrollY >= 400);
+
+        // Save progress (debounced 2s)
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
-            const pct = window.scrollY / Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+            const pct = scrollY / Math.max(1, maxScroll);
             fetch(`/books/${BOOK_ID}/progress`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
