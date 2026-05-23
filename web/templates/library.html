@@ -128,8 +128,12 @@
                         {{end}}{{end}}
 
                         {{if statusIs .Status "error"}}
-                        <div class="absolute inset-0 bg-black/70 flex items-center justify-center">
+                        <div class="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2">
                             <span class="text-xs text-red-400">Gagal</span>
+                            <button class="retry-btn text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-full transition"
+                                data-book-id="{{.ID}}">Coba Lagi</button>
+                            <button class="delete-btn text-xs text-gray-500 hover:text-red-400 transition"
+                                data-book-id="{{.ID}}">Hapus</button>
                         </div>
                         {{end}}
                     </div>
@@ -332,6 +336,16 @@
         });
         location.reload();
     }
+
+    // --- Retry ---
+    document.querySelectorAll('.retry-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            btn.textContent = '...';
+            btn.disabled = true;
+            await fetch(`/books/${btn.dataset.bookId}/retry`, { method: 'POST' });
+            location.reload();
+        });
+    });
 
     // --- Poll in-progress books ---
     const statusLabels = document.querySelectorAll('.status-label');

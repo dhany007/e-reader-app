@@ -91,6 +91,7 @@ func main() {
 	g.POST("/books/:id/progress", readerHandler.SaveProgress)
 	g.GET("/books/:id/progress", readerHandler.GetProgress)
 	g.GET("/books/:id/cover", bookHandler.Cover)
+	g.POST("/books/:id/retry", bookHandler.Retry)
 	g.POST("/books/:id/shelf", bookHandler.MoveBook)
 	g.POST("/shelves", shelfHandler.Create)
 	g.DELETE("/shelves/:id", shelfHandler.Delete)

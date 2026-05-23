@@ -13,6 +13,9 @@ services:
     volumes:
       - ai-reader-data:/data
       - ai-reader-storage:/storage
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     restart: unless-stopped
 
 volumes:

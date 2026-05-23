@@ -93,23 +93,34 @@
             const res = await fetch(`/books/${BOOK_ID}/pages/${num}`);
             if (res.ok) {
                 const data = await res.json();
-                const div = document.createElement('div');
-                div.className = 'mb-6 pb-6 border-b border-gray-800 page-divider last:border-0';
-                div.dataset.page = num;
-                div.innerHTML = data.html;
-                document.getElementById('content').appendChild(div);
                 current = num;
-                updateIndicator();
+                if (data.html) {
+                    const div = document.createElement('div');
+                    div.className = 'mb-6 pb-6 border-b border-gray-800 page-divider last:border-0';
+                    div.dataset.page = num;
+                    div.innerHTML = data.html;
+                    document.getElementById('content').appendChild(div);
+                    updateIndicator();
 
-                if (!progressRestored && savedScrollY > 0) {
-                    progressRestored = true;
-                    window.scrollTo({ top: savedScrollY, behavior: 'instant' });
+                    if (!progressRestored && savedScrollY > 0) {
+                        progressRestored = true;
+                        window.scrollTo({ top: savedScrollY, behavior: 'instant' });
+                    }
                 }
 
                 if (num >= TOTAL) {
                     document.getElementById('loader').classList.add('hidden');
                     document.getElementById('end-msg').classList.remove('hidden');
+                } else if (!data.html) {
+                    // Empty page — auto-load next without waiting for scroll
+                    loading = false;
+                    document.getElementById('loader').classList.add('hidden');
+                    await loadPage(num + 1);
+                    return;
                 }
+            } else {
+                document.getElementById('content').innerHTML =
+                    '<p class="text-red-400 text-center py-20 text-sm">Gagal memuat konten buku. Coba refresh halaman.</p>';
             }
         } finally {
             loading = false;
@@ -124,6 +135,14 @@
     }
 
     async function restoreProgress() {
+        if (TOTAL === 0) {
+            document.getElementById('content').innerHTML =
+                '<div class="text-center py-20">' +
+                '<p class="text-gray-500 text-sm mb-4">Buku ini tidak memiliki konten yang dapat dibaca.<br>PDF mungkin berupa gambar hasil scan tanpa teks.</p>' +
+                '<a href="/library" class="text-blue-400 hover:text-blue-300 text-sm transition">← Kembali ke perpustakaan</a>' +
+                '</div>';
+            return;
+        }
         try {
             const res = await fetch(`/books/${BOOK_ID}/progress`);
             if (res.ok) {

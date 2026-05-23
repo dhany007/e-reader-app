@@ -57,31 +57,48 @@ func (p *Pipeline) process(bookID int64) error {
 	}
 	pdfPath := filepath.Join(p.storageDir, "pdfs", filename)
 
-	// Step 1: extract text from PDF via Python subprocess
-	p.setStatus(bookID, "extracting")
-	result, err := p.extract(pdfPath)
+	// Step 1: extract — skip if pages already exist in DB (resume after failed retry)
+	pages, err := p.loadPages(bookID)
 	if err != nil {
-		return fmt.Errorf("extract: %w", err)
+		return fmt.Errorf("load pages: %w", err)
 	}
-
-	p.db.Exec(
-		`UPDATE books SET total_pages = ?, done_pages = 0, updated_at = ? WHERE id = ?`,
-		len(result.Pages), time.Now(), bookID,
-	)
-
-	for _, pg := range result.Pages {
-		if err := p.saveRawPage(bookID, pg.Page, pg.Text); err != nil {
-			return fmt.Errorf("save raw page %d: %w", pg.Page, err)
+	if len(pages) == 0 {
+		p.setStatus(bookID, "extracting")
+		result, err := p.extract(pdfPath)
+		if err != nil {
+			return fmt.Errorf("extract: %w", err)
+		}
+		pages = result.Pages
+		for _, pg := range pages {
+			if err := p.saveRawPage(bookID, pg.Page, pg.Text); err != nil {
+				return fmt.Errorf("save raw page %d: %w", pg.Page, err)
+			}
 		}
 	}
 
-	// Step 2: translate each page via DeepSeek API
+	p.db.Exec(
+		`UPDATE books SET total_pages = ?, updated_at = ? WHERE id = ?`,
+		len(pages), time.Now(), bookID,
+	)
+
+	// Step 2: translate — skip pages that already have html_content
 	p.setStatus(bookID, "translating")
 	ctx := context.Background()
 
-	for _, pg := range result.Pages {
+	// Count already-done pages for accurate progress display
+	var doneSoFar int
+	p.db.QueryRow(`SELECT COUNT(*) FROM pages WHERE book_id = ? AND html_content != ''`, bookID).Scan(&doneSoFar)
+	p.db.Exec(`UPDATE books SET done_pages = ?, updated_at = ? WHERE id = ?`, doneSoFar, time.Now(), bookID)
+
+	for _, pg := range pages {
 		if pg.Text == "" {
 			p.incrementDone(bookID)
+			continue
+		}
+		// Skip already translated
+		var existing string
+		p.db.QueryRow(`SELECT html_content FROM pages WHERE book_id = ? AND page_number = ?`, bookID, pg.Page).Scan(&existing)
+		if existing != "" {
 			continue
 		}
 
@@ -89,7 +106,6 @@ func (p *Pipeline) process(bookID int64) error {
 		if err != nil {
 			return fmt.Errorf("translate page %d: %w", pg.Page, err)
 		}
-
 		p.db.Exec(
 			`UPDATE pages SET html_content = ?, translated_at = ? WHERE book_id = ? AND page_number = ?`,
 			html, time.Now(), bookID, pg.Page,
@@ -99,6 +115,25 @@ func (p *Pipeline) process(bookID int64) error {
 
 	p.setStatus(bookID, "done")
 	return nil
+}
+
+func (p *Pipeline) loadPages(bookID int64) ([]extractedPage, error) {
+	rows, err := p.db.Query(
+		`SELECT page_number, raw_text FROM pages WHERE book_id = ? ORDER BY page_number`, bookID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var pages []extractedPage
+	for rows.Next() {
+		var pg extractedPage
+		if err := rows.Scan(&pg.Page, &pg.Text); err != nil {
+			return nil, err
+		}
+		pages = append(pages, pg)
+	}
+	return pages, rows.Err()
 }
 
 func (p *Pipeline) extract(pdfPath string) (*extractResult, error) {

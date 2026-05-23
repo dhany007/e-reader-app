@@ -78,6 +78,20 @@ func (h *BookHandler) Delete(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+func (h *BookHandler) Retry(c echo.Context) error {
+	id, err := parseID(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+	book, err := h.svc.GetByID(id)
+	if err != nil || book == nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+	}
+	h.svc.ResetForRetry(id)
+	go h.pipeline.Process(id)
+	return c.JSON(http.StatusOK, map[string]string{"ok": "true"})
+}
+
 func (h *BookHandler) MoveBook(c echo.Context) error {
 	bookID, err := parseID(c)
 	if err != nil {

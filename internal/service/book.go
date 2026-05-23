@@ -256,6 +256,10 @@ func (s *BookService) DeleteShelf(id int64) error {
 	return err
 }
 
+func (s *BookService) ResetForRetry(id int64) {
+	s.db.Exec(`UPDATE books SET status = 'pending', error_msg = NULL, done_pages = 0, updated_at = ? WHERE id = ?`, time.Now(), id)
+}
+
 func (s *BookService) UpdateStatus(id int64, status model.BookStatus, errMsg string) {
 	s.db.Exec(
 		`UPDATE books SET status = ?, error_msg = ?, updated_at = ? WHERE id = ?`,

@@ -11,7 +11,9 @@
       "Bash(python3 -c \"import bcrypt; print\\(bcrypt.hashpw\\(b'contoh123', bcrypt.gensalt\\(10\\)\\).decode\\(\\)\\)\")",
       "Bash(xargs sed -i 's|\"ai-reader/internal|\"aksara/internal|g')",
       "Bash(xargs sed -i 's/AI Reader/Aksara/g')",
-      "Bash(xargs sed -i 's/Aksara/aksara/g')"
+      "Bash(xargs sed -i 's/Aksara/aksara/g')",
+      "Bash(docker exec *)",
+      "Bash(docker compose *)"
     ]
   }
 }
