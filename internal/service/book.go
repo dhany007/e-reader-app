@@ -4,23 +4,48 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
+	"aksara/internal/config"
 	"aksara/internal/model"
 
 	"github.com/google/uuid"
 )
 
 type BookService struct {
-	db         *sql.DB
-	storageDir string
+	db           *sql.DB
+	storageDir   string
+	pythonBin    string
+	parserScript string
 }
 
-func NewBookService(db *sql.DB, storageDir string) *BookService {
-	return &BookService{db: db, storageDir: storageDir}
+func NewBookService(db *sql.DB, cfg *config.Config) *BookService {
+	return &BookService{
+		db:           db,
+		storageDir:   cfg.StorageDir,
+		pythonBin:    cfg.PythonBin,
+		parserScript: cfg.ParserScript,
+	}
+}
+
+func (s *BookService) CoverPath(bookID int64) string {
+	return filepath.Join(s.storageDir, "covers", fmt.Sprintf("%d.jpg", bookID))
+}
+
+func (s *BookService) extractCover(bookID int64, pdfPath string) {
+	coverDir := filepath.Join(s.storageDir, "covers")
+	if err := os.MkdirAll(coverDir, 0755); err != nil {
+		return
+	}
+	cmd := exec.Command(s.pythonBin, s.parserScript, "--cover", pdfPath, s.CoverPath(bookID))
+	if err := cmd.Run(); err != nil {
+		log.Printf("cover extraction failed book %d: %v", bookID, err)
+	}
 }
 
 func (s *BookService) Upload(file multipart.File, header *multipart.FileHeader, title string) (*model.Book, error) {
@@ -70,6 +95,8 @@ func (s *BookService) Upload(file multipart.File, header *multipart.FileHeader, 
 		os.Remove(destPath)
 		return nil, fmt.Errorf("insert book: %w", err)
 	}
+
+	go s.extractCover(book.ID, destPath)
 
 	return book, nil
 }
@@ -141,8 +168,8 @@ func (s *BookService) Delete(id int64) error {
 	if err != nil || book == nil {
 		return err
 	}
-	pdfPath := filepath.Join(s.storageDir, "pdfs", book.Filename)
-	os.Remove(pdfPath)
+	os.Remove(filepath.Join(s.storageDir, "pdfs", book.Filename))
+	os.Remove(s.CoverPath(id))
 	_, err = s.db.Exec(`DELETE FROM books WHERE id = ?`, id)
 	return err
 }

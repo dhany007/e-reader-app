@@ -17,7 +17,7 @@ COPY --from=builder /app/server .
 COPY parser/ ./parser/
 COPY web/   ./web/
 
-RUN mkdir -p /data /storage/pdfs
+RUN mkdir -p /data /storage/pdfs /storage/covers
 
 ENV PORT=8080 \
     DATA_DIR=/data \

@@ -57,7 +57,7 @@ func main() {
 	}
 	tmpl := template.Must(template.New("").Funcs(funcMap).ParseGlob("web/templates/*.html"))
 
-	bookSvc := service.NewBookService(database, cfg.StorageDir)
+	bookSvc := service.NewBookService(database, cfg)
 	pipeline := worker.NewPipeline(database, cfg)
 	bookHandler := handler.NewBookHandler(bookSvc, pipeline)
 	authHandler := handler.NewAuthHandler(cfg)
@@ -90,6 +90,7 @@ func main() {
 	g.GET("/books/:id/pages/:num", readerHandler.GetPage)
 	g.POST("/books/:id/progress", readerHandler.SaveProgress)
 	g.GET("/books/:id/progress", readerHandler.GetProgress)
+	g.GET("/books/:id/cover", bookHandler.Cover)
 	g.POST("/books/:id/shelf", bookHandler.MoveBook)
 	g.POST("/shelves", shelfHandler.Create)
 	g.DELETE("/shelves/:id", shelfHandler.Delete)

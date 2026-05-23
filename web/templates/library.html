@@ -91,42 +91,60 @@
             {{if .books}}
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                 {{range .books}}
-                <div class="book-card bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col gap-3 relative group"
+                <div class="book-card group relative flex flex-col rounded-xl overflow-hidden bg-gray-900 border border-gray-800 hover:border-gray-700 transition"
                     data-book-id="{{.ID}}">
 
-                    <!-- Actions menu -->
-                    <div class="absolute top-2 right-2 hidden group-hover:flex gap-1">
-                        <button class="move-btn w-6 h-6 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-gray-400 hover:text-white transition text-xs"
-                            data-book-id="{{.ID}}" data-book-title="{{.Title}}" data-shelf-id="{{if .ShelfID}}{{.ShelfID}}{{else}}0{{end}}"
-                            title="Pindah ke rak">
-                            ☰
-                        </button>
-                        <button class="delete-btn w-6 h-6 flex items-center justify-center bg-gray-800 hover:bg-red-900 rounded-full text-gray-400 hover:text-red-400 transition text-xs"
-                            data-book-id="{{.ID}}" title="Hapus">✕</button>
-                    </div>
+                    <!-- Cover -->
+                    <div class="relative aspect-[2/3] bg-gray-800 overflow-hidden">
+                        <img src="/books/{{.ID}}/cover" alt=""
+                            class="absolute inset-0 w-full h-full object-cover"
+                            onerror="this.style.display='none'">
+                        <!-- Placeholder -->
+                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <span class="text-5xl opacity-10 select-none">📖</span>
+                        </div>
 
-                    <div class="pr-6">
-                        <div class="text-sm font-medium text-gray-100 line-clamp-3 leading-snug">{{.Title}}</div>
-                        {{if .ShelfName}}<div class="text-xs text-gray-600 mt-1">{{.ShelfName}}</div>{{end}}
-                    </div>
+                        <!-- Hover overlay: actions -->
+                        <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-end justify-end gap-1 p-2">
+                            <button class="move-btn w-7 h-7 flex items-center justify-center bg-black/60 hover:bg-black/80 rounded-full text-white text-xs transition"
+                                data-book-id="{{.ID}}" data-book-title="{{.Title}}"
+                                data-shelf-id="{{if .ShelfID}}{{.ShelfID}}{{else}}0{{end}}"
+                                title="Pindah ke rak">☰</button>
+                            <button class="delete-btn w-7 h-7 flex items-center justify-center bg-black/60 hover:bg-red-700 rounded-full text-white text-xs transition"
+                                data-book-id="{{.ID}}" title="Hapus">✕</button>
+                        </div>
 
-                    {{if statusIs .Status "done"}}
-                        <a href="/books/{{.ID}}/read"
-                            class="mt-auto text-center bg-blue-600 hover:bg-blue-700 text-xs font-medium px-3 py-2 rounded-lg transition">
-                            Baca
-                        </a>
-                    {{else if statusIs .Status "error"}}
-                        <div class="mt-auto text-xs text-red-400">Gagal diproses</div>
-                    {{else}}
-                        <div class="mt-auto space-y-1.5">
-                            <div class="text-xs text-gray-400 status-label capitalize">{{.Status}}...</div>
-                            <div class="w-full bg-gray-800 rounded-full h-1.5">
-                                <div class="bg-blue-500 h-1.5 rounded-full transition-all progress-bar"
+                        <!-- Processing overlay -->
+                        {{if not (statusIs .Status "done")}}{{if not (statusIs .Status "error")}}
+                        <div class="absolute inset-0 bg-black/65 flex flex-col items-center justify-center gap-2 px-3">
+                            <div class="w-5 h-5 border-2 border-gray-500 border-t-blue-400 rounded-full animate-spin"></div>
+                            <div class="text-xs text-gray-300 status-label capitalize">{{.Status}}...</div>
+                            <div class="w-full bg-gray-700 rounded-full h-1">
+                                <div class="bg-blue-500 h-1 rounded-full progress-bar transition-all"
                                     style="width: {{progressPct .DonePages .TotalPages}}%"></div>
                             </div>
-                            <div class="text-xs text-gray-600 progress-count">{{.DonePages}} / {{.TotalPages}} hal</div>
+                            <div class="text-xs text-gray-500 progress-count">{{.DonePages}}/{{.TotalPages}}</div>
                         </div>
-                    {{end}}
+                        {{end}}{{end}}
+
+                        {{if statusIs .Status "error"}}
+                        <div class="absolute inset-0 bg-black/70 flex items-center justify-center">
+                            <span class="text-xs text-red-400">Gagal</span>
+                        </div>
+                        {{end}}
+                    </div>
+
+                    <!-- Info -->
+                    <div class="p-3 flex flex-col gap-2">
+                        <div class="text-xs font-medium text-gray-100 line-clamp-2 leading-snug">{{.Title}}</div>
+                        {{if .ShelfName}}<div class="text-xs text-gray-600">{{.ShelfName}}</div>{{end}}
+                        {{if statusIs .Status "done"}}
+                        <a href="/books/{{.ID}}/read"
+                            class="mt-1 text-center bg-blue-600 hover:bg-blue-700 text-xs font-medium px-3 py-1.5 rounded-lg transition">
+                            Baca
+                        </a>
+                        {{end}}
+                    </div>
                 </div>
                 {{end}}
             </div>

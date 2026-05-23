@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"os"
 	"strconv"
 
 	"aksara/internal/service"
@@ -92,6 +93,18 @@ func (h *BookHandler) MoveBook(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]string{"ok": "true"})
+}
+
+func (h *BookHandler) Cover(c echo.Context) error {
+	id, err := parseID(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+	coverPath := h.svc.CoverPath(id)
+	if _, err := os.Stat(coverPath); os.IsNotExist(err) {
+		return c.NoContent(http.StatusNotFound)
+	}
+	return c.File(coverPath)
 }
 
 func parseID(c echo.Context) (int64, error) {
