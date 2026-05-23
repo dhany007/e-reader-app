@@ -135,12 +135,24 @@
     }
 
     async function restoreProgress() {
+        // Show cover image before text content
+        const coverImg = document.createElement('img');
+        coverImg.src = `/books/${BOOK_ID}/cover`;
+        coverImg.alt = 'Sampul';
+        coverImg.className = 'w-full max-w-xs mx-auto rounded-lg shadow-lg block mb-8';
+        coverImg.onerror = () => coverWrap.remove();
+        const coverWrap = document.createElement('div');
+        coverWrap.className = 'flex justify-center mb-6 pb-6 border-b border-gray-800';
+        coverWrap.appendChild(coverImg);
+        document.getElementById('content').appendChild(coverWrap);
+
         if (TOTAL === 0) {
-            document.getElementById('content').innerHTML =
-                '<div class="text-center py-20">' +
+            const msg = document.createElement('div');
+            msg.className = 'text-center py-20';
+            msg.innerHTML =
                 '<p class="text-gray-500 text-sm mb-4">Buku ini tidak memiliki konten yang dapat dibaca.<br>PDF mungkin berupa gambar hasil scan tanpa teks.</p>' +
-                '<a href="/library" class="text-blue-400 hover:text-blue-300 text-sm transition">← Kembali ke perpustakaan</a>' +
-                '</div>';
+                '<a href="/library" class="text-blue-400 hover:text-blue-300 text-sm transition">← Kembali ke perpustakaan</a>';
+            document.getElementById('content').appendChild(msg);
             return;
         }
         try {
