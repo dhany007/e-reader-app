@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"ai-reader/internal/config"
+	"ai-reader/internal/service"
 )
 
 type Pipeline struct {
@@ -17,6 +19,7 @@ type Pipeline struct {
 	storageDir   string
 	pythonBin    string
 	parserScript string
+	translator   *service.Translator
 }
 
 func NewPipeline(db *sql.DB, cfg *config.Config) *Pipeline {
@@ -25,6 +28,7 @@ func NewPipeline(db *sql.DB, cfg *config.Config) *Pipeline {
 		storageDir:   cfg.StorageDir,
 		pythonBin:    cfg.PythonBin,
 		parserScript: cfg.ParserScript,
+		translator:   service.NewTranslator(cfg.DeepSeekAPIKey, cfg.DeepSeekModel),
 	}
 }
 
@@ -33,7 +37,7 @@ type extractedPage struct {
 	Text string `json:"text"`
 }
 
-// Process runs the full pipeline for a book in a background goroutine.
+// Process runs the full pipeline for a book. Meant to be called in a goroutine.
 func (p *Pipeline) Process(bookID int64) {
 	if err := p.process(bookID); err != nil {
 		log.Printf("pipeline error book %d: %v", bookID, err)
@@ -46,26 +50,48 @@ func (p *Pipeline) process(bookID int64) error {
 	if err != nil {
 		return fmt.Errorf("get filename: %w", err)
 	}
-
 	pdfPath := filepath.Join(p.storageDir, "pdfs", filename)
 
+	// Step 1: extract text from PDF via Python subprocess
 	p.setStatus(bookID, "extracting")
 	pages, err := p.extract(pdfPath)
 	if err != nil {
 		return fmt.Errorf("extract: %w", err)
 	}
 
-	p.db.Exec(`UPDATE books SET total_pages = ?, updated_at = ? WHERE id = ?`,
-		len(pages), time.Now(), bookID)
+	p.db.Exec(
+		`UPDATE books SET total_pages = ?, done_pages = 0, updated_at = ? WHERE id = ?`,
+		len(pages), time.Now(), bookID,
+	)
 
 	for _, pg := range pages {
-		if err := p.savePage(int(bookID), pg.Page, pg.Text); err != nil {
-			return fmt.Errorf("save page %d: %w", pg.Page, err)
+		if err := p.saveRawPage(bookID, pg.Page, pg.Text); err != nil {
+			return fmt.Errorf("save raw page %d: %w", pg.Page, err)
 		}
 	}
 
-	// Translation is added in Phase 4.
-	// For now mark done so the book appears in the library.
+	// Step 2: translate each page via DeepSeek API
+	p.setStatus(bookID, "translating")
+	ctx := context.Background()
+
+	for _, pg := range pages {
+		if pg.Text == "" {
+			p.incrementDone(bookID)
+			continue
+		}
+
+		html, err := p.translator.Translate(ctx, pg.Text)
+		if err != nil {
+			return fmt.Errorf("translate page %d: %w", pg.Page, err)
+		}
+
+		p.db.Exec(
+			`UPDATE pages SET html_content = ?, translated_at = ? WHERE book_id = ? AND page_number = ?`,
+			html, time.Now(), bookID, pg.Page,
+		)
+		p.incrementDone(bookID)
+	}
+
 	p.setStatus(bookID, "done")
 	return nil
 }
@@ -98,21 +124,25 @@ func (p *Pipeline) setStatus(bookID int64, status string) {
 }
 
 func (p *Pipeline) setError(bookID int64, msg string) {
-	p.db.Exec(`UPDATE books SET status = 'error', error_msg = ?, updated_at = ? WHERE id = ?`,
-		msg, time.Now(), bookID)
+	p.db.Exec(
+		`UPDATE books SET status = 'error', error_msg = ?, updated_at = ? WHERE id = ?`,
+		msg, time.Now(), bookID,
+	)
 }
 
-func (p *Pipeline) savePage(bookID, pageNum int, rawText string) error {
+func (p *Pipeline) saveRawPage(bookID int64, pageNum int, rawText string) error {
 	_, err := p.db.Exec(
 		`INSERT INTO pages (book_id, page_number, raw_text)
 		 VALUES (?, ?, ?)
 		 ON CONFLICT(book_id, page_number) DO UPDATE SET raw_text = excluded.raw_text`,
 		bookID, pageNum, rawText,
 	)
-	if err != nil {
-		return err
-	}
-	p.db.Exec(`UPDATE books SET done_pages = done_pages + 1, updated_at = ? WHERE id = ?`,
-		time.Now(), bookID)
-	return nil
+	return err
+}
+
+func (p *Pipeline) incrementDone(bookID int64) {
+	p.db.Exec(
+		`UPDATE books SET done_pages = done_pages + 1, updated_at = ? WHERE id = ?`,
+		time.Now(), bookID,
+	)
 }
