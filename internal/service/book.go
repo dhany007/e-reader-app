@@ -135,3 +135,36 @@ func (s *BookService) UpdateStatus(id int64, status model.BookStatus, errMsg str
 		status, errMsg, time.Now(), id,
 	)
 }
+
+func (s *BookService) GetPage(bookID int64, pageNum int) (*model.Page, error) {
+	p := &model.Page{}
+	err := s.db.QueryRow(
+		`SELECT id, book_id, page_number, html_content FROM pages
+		 WHERE book_id = ? AND page_number = ?`, bookID, pageNum,
+	).Scan(&p.ID, &p.BookID, &p.PageNumber, &p.HTMLContent)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return p, err
+}
+
+func (s *BookService) GetProgress(bookID int64) (float64, error) {
+	var pct float64
+	err := s.db.QueryRow(
+		`SELECT scroll_pct FROM reading_progress WHERE book_id = ?`, bookID,
+	).Scan(&pct)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return pct, err
+}
+
+func (s *BookService) SaveProgress(bookID int64, scrollPct float64) error {
+	_, err := s.db.Exec(
+		`INSERT INTO reading_progress (book_id, scroll_pct, updated_at)
+		 VALUES (?, ?, CURRENT_TIMESTAMP)
+		 ON CONFLICT(book_id) DO UPDATE SET scroll_pct = excluded.scroll_pct, updated_at = excluded.updated_at`,
+		bookID, scrollPct,
+	)
+	return err
+}

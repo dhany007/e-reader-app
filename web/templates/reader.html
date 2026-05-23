@@ -1,0 +1,127 @@
+{{define "reader.html"}}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.book.Title}} — AI Reader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .prose h2 { font-size: 1.25rem; font-weight: 700; margin: 1.5rem 0 0.75rem; color: #e5e7eb; }
+        .prose h3 { font-size: 1.1rem; font-weight: 600; margin: 1.25rem 0 0.5rem; color: #d1d5db; }
+        .prose p  { margin: 0 0 1rem; line-height: 1.8; color: #d1d5db; }
+        .prose pre { background: #111827; border: 1px solid #374151; border-radius: 0.5rem; padding: 1rem; overflow-x: auto; margin: 1rem 0; }
+        .prose pre code { font-family: 'Courier New', monospace; font-size: 0.85rem; color: #86efac; }
+        .prose code:not(pre code) { background: #1f2937; padding: 0.15em 0.4em; border-radius: 0.25rem; font-size: 0.875em; color: #86efac; }
+        .prose ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; color: #d1d5db; }
+        .prose ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 1rem; color: #d1d5db; }
+        .prose li { margin-bottom: 0.25rem; line-height: 1.7; }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-200 min-h-screen">
+
+    <!-- Header -->
+    <header class="sticky top-0 z-10 bg-gray-950/90 backdrop-blur border-b border-gray-800 px-4 py-3 flex items-center gap-3">
+        <a href="/library" class="text-gray-400 hover:text-white transition p-1 -ml-1" aria-label="Kembali">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+        </a>
+        <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium truncate">{{.book.Title}}</div>
+            <div id="page-indicator" class="text-xs text-gray-500"></div>
+        </div>
+    </header>
+
+    <!-- Content -->
+    <main class="max-w-2xl mx-auto px-4 sm:px-6 py-8 pb-24">
+        <div id="content" class="prose"></div>
+        <div id="loader" class="hidden text-center py-8">
+            <div class="inline-block w-5 h-5 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin"></div>
+        </div>
+        <div id="end-msg" class="hidden text-center text-gray-600 text-sm py-8">— Selesai —</div>
+    </main>
+
+    <script>
+    const BOOK_ID = {{.book.ID}};
+    const TOTAL = {{.book.TotalPages}};
+    let current = 0;
+    let loading = false;
+    let progressRestored = false;
+    let savedScrollY = 0;
+
+    async function loadPage(num) {
+        if (num < 1 || num > TOTAL || loading) return;
+        loading = true;
+        document.getElementById('loader').classList.remove('hidden');
+
+        const res = await fetch(`/books/${BOOK_ID}/pages/${num}`);
+        if (res.ok) {
+            const data = await res.json();
+            const div = document.createElement('div');
+            div.className = 'mb-8 pb-8 border-b border-gray-800 last:border-0';
+            div.dataset.page = num;
+            div.innerHTML = data.html;
+            document.getElementById('content').appendChild(div);
+            current = num;
+            updateIndicator();
+
+            if (!progressRestored && savedScrollY > 0) {
+                progressRestored = true;
+                window.scrollTo({ top: savedScrollY, behavior: 'instant' });
+            }
+
+            if (num >= TOTAL) {
+                document.getElementById('loader').classList.add('hidden');
+                document.getElementById('end-msg').classList.remove('hidden');
+            }
+        }
+
+        loading = false;
+        document.getElementById('loader').classList.add('hidden');
+    }
+
+    function updateIndicator() {
+        const el = document.getElementById('page-indicator');
+        if (TOTAL > 0) el.textContent = `Halaman ${current} / ${TOTAL}`;
+    }
+
+    async function restoreProgress() {
+        const res = await fetch(`/books/${BOOK_ID}/progress`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.scroll_pct > 0) {
+                savedScrollY = data.scroll_pct * (document.documentElement.scrollHeight - window.innerHeight);
+            }
+        }
+        await loadPage(1);
+        // If no saved position, progressRestored stays false but that's fine
+        if (savedScrollY === 0) progressRestored = true;
+    }
+
+    // Lazy load on scroll
+    let saveTimer;
+    window.addEventListener('scroll', () => {
+        // Load next page when within 600px of bottom
+        const distFromBottom = document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
+        if (distFromBottom < 600 && !loading && current < TOTAL) {
+            loadPage(current + 1);
+        }
+
+        // Save progress (debounced, every 2s)
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+            const pct = window.scrollY / Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+            fetch(`/books/${BOOK_ID}/progress`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ scroll_pct: pct })
+            });
+        }, 2000);
+    });
+
+    restoreProgress();
+    </script>
+</body>
+</html>
+{{end}}

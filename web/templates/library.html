@@ -1,0 +1,167 @@
+{{define "library.html"}}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Reader — Perpustakaan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gray-950 text-white">
+    <nav class="sticky top-0 z-10 bg-gray-950/90 backdrop-blur border-b border-gray-800 px-4 sm:px-6 py-4 flex items-center justify-between">
+        <h1 class="text-lg font-bold">AI Reader</h1>
+        <div class="flex items-center gap-3">
+            <button id="open-upload"
+                class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-4 py-2 rounded-lg text-sm font-medium transition">
+                + Upload
+            </button>
+            <a href="/logout" class="text-gray-400 hover:text-white text-sm transition">Keluar</a>
+        </div>
+    </nav>
+
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+        {{if .books}}
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {{range .books}}
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col gap-3" data-book-id="{{.ID}}">
+                <div>
+                    <div class="text-sm font-medium text-gray-100 line-clamp-3 leading-snug">{{.Title}}</div>
+                    <div class="text-xs text-gray-500 mt-1">{{.Category}}</div>
+                </div>
+                {{if statusIs .Status "done"}}
+                    <a href="/books/{{.ID}}/read"
+                        class="mt-auto text-center bg-blue-600 hover:bg-blue-700 text-xs font-medium px-3 py-2 rounded-lg transition">
+                        Baca
+                    </a>
+                {{else if statusIs .Status "error"}}
+                    <div class="mt-auto">
+                        <span class="text-xs text-red-400">Gagal diproses</span>
+                    </div>
+                {{else}}
+                    <div class="mt-auto space-y-1.5">
+                        <div class="text-xs text-gray-400 status-label capitalize">{{.Status}}...</div>
+                        <div class="w-full bg-gray-800 rounded-full h-1.5">
+                            <div class="bg-blue-500 h-1.5 rounded-full transition-all progress-bar"
+                                style="width: {{progressPct .DonePages .TotalPages}}%"></div>
+                        </div>
+                        <div class="text-xs text-gray-600 progress-count">
+                            {{.DonePages}} / {{.TotalPages}} halaman
+                        </div>
+                    </div>
+                {{end}}
+            </div>
+            {{end}}
+        </div>
+        {{else}}
+        <div class="text-center mt-24">
+            <div class="text-5xl mb-4">📚</div>
+            <p class="text-gray-400 text-lg font-medium">Belum ada buku</p>
+            <p class="text-gray-600 text-sm mt-1">Upload PDF pertamamu untuk mulai membaca</p>
+            <button id="open-upload-empty"
+                class="mt-6 bg-blue-600 hover:bg-blue-700 px-6 py-2.5 rounded-lg text-sm font-medium transition">
+                Upload Buku
+            </button>
+        </div>
+        {{end}}
+    </main>
+
+    <!-- Upload Modal -->
+    <div id="upload-modal" class="hidden fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-md">
+            <h2 class="text-base font-semibold mb-4">Upload Buku PDF</h2>
+            <form id="upload-form" enctype="multipart/form-data" class="space-y-3">
+                <input name="title" type="text" placeholder="Judul buku (opsional)"
+                    class="w-full bg-gray-800 text-white px-3 py-2.5 rounded-lg text-sm border border-gray-700 focus:outline-none focus:border-blue-500 placeholder-gray-500">
+                <input name="category" type="text" placeholder="Kategori (opsional)"
+                    class="w-full bg-gray-800 text-white px-3 py-2.5 rounded-lg text-sm border border-gray-700 focus:outline-none focus:border-blue-500 placeholder-gray-500">
+                <div class="border-2 border-dashed border-gray-700 rounded-lg p-4 text-center">
+                    <input id="file-input" name="file" type="file" accept=".pdf" required class="hidden">
+                    <label for="file-input" class="cursor-pointer">
+                        <div class="text-gray-400 text-sm" id="file-label">Klik untuk pilih file PDF</div>
+                    </label>
+                </div>
+                <div id="upload-error" class="hidden text-red-400 text-xs px-1"></div>
+                <div class="flex gap-2 pt-1">
+                    <button type="button" id="cancel-upload"
+                        class="flex-1 bg-gray-800 hover:bg-gray-700 py-2.5 rounded-lg text-sm transition">
+                        Batal
+                    </button>
+                    <button type="submit" id="submit-upload"
+                        class="flex-1 bg-blue-600 hover:bg-blue-700 py-2.5 rounded-lg text-sm font-medium transition">
+                        Upload
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    const modal = document.getElementById('upload-modal');
+    const openModal = () => modal.classList.remove('hidden');
+    const closeModal = () => modal.classList.add('hidden');
+
+    document.getElementById('open-upload').addEventListener('click', openModal);
+    document.getElementById('cancel-upload').addEventListener('click', closeModal);
+    const emptyBtn = document.getElementById('open-upload-empty');
+    if (emptyBtn) emptyBtn.addEventListener('click', openModal);
+
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+    document.getElementById('file-input').addEventListener('change', (e) => {
+        const name = e.target.files[0]?.name || 'Pilih file PDF';
+        document.getElementById('file-label').textContent = name;
+    });
+
+    document.getElementById('upload-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('submit-upload');
+        const errDiv = document.getElementById('upload-error');
+        btn.textContent = 'Mengupload...';
+        btn.disabled = true;
+        errDiv.classList.add('hidden');
+
+        const res = await fetch('/books/upload', { method: 'POST', body: new FormData(e.target) });
+        if (res.ok) {
+            location.reload();
+        } else {
+            const data = await res.json().catch(() => ({}));
+            errDiv.textContent = data.error || 'Upload gagal, coba lagi.';
+            errDiv.classList.remove('hidden');
+            btn.textContent = 'Upload';
+            btn.disabled = false;
+        }
+    });
+
+    // Poll progress for in-progress books
+    const inProgress = document.querySelectorAll('[data-book-id] .status-label');
+    if (inProgress.length > 0) {
+        const poll = async () => {
+            let anyActive = false;
+            for (const label of inProgress) {
+                const card = label.closest('[data-book-id]');
+                const id = card.dataset.bookId;
+                const res = await fetch(`/books/${id}/status`);
+                if (!res.ok) continue;
+                const d = await res.json();
+
+                label.textContent = d.status + '...';
+                const bar = card.querySelector('.progress-bar');
+                const count = card.querySelector('.progress-count');
+                if (d.total_pages > 0) {
+                    bar.style.width = Math.round(d.done_pages / d.total_pages * 100) + '%';
+                    count.textContent = d.done_pages + ' / ' + d.total_pages + ' halaman';
+                }
+                if (d.status === 'done' || d.status === 'error') {
+                    location.reload();
+                    return;
+                }
+                anyActive = true;
+            }
+            if (anyActive) setTimeout(poll, 3000);
+        };
+        setTimeout(poll, 3000);
+    }
+    </script>
+</body>
+</html>
+{{end}}
