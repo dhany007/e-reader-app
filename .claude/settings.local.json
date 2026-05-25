@@ -18,7 +18,8 @@
       "Bash(pip3 install *)",
       "Bash(python3 -m venv /tmp/bcrypt_env)",
       "Bash(/tmp/bcrypt_env/bin/pip install *)",
-      "Bash(/tmp/bcrypt_env/bin/python3 -c \"import bcrypt; print\\(bcrypt.hashpw\\(b'aksara0', bcrypt.gensalt\\(rounds=10\\)\\).decode\\(\\)\\)\")"
+      "Bash(/tmp/bcrypt_env/bin/python3 -c \"import bcrypt; print\\(bcrypt.hashpw\\(b'aksara0', bcrypt.gensalt\\(rounds=10\\)\\).decode\\(\\)\\)\")",
+      "Bash(chmod +x /Users/citradigital/Desktop/learn/aksara/sync-to-vps.sh)"
     ]
   }
 }
