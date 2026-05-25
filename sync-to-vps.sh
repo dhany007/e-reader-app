@@ -12,6 +12,11 @@ if [ ! -f "$PEM" ]; then
     exit 1
 fi
 
+echo "==> Extracting database from local Docker container..."
+mkdir -p ./data ./storage/covers
+docker compose cp app:/data/ai-reader.db ./data/ai-reader.db
+docker compose cp app:/storage/covers/. ./storage/covers/
+
 echo "==> Stopping app on VPS..."
 ssh -i "$PEM" -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
     "cd $REMOTE_DIR && docker compose stop"
