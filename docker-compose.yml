@@ -1,7 +1,7 @@
 services:
   app:
     image: adipatidhany/aksara:latest
-    # build: .
+    build: .
     ports:
       - "${PORT:-8080}:8080"
     env_file: .env

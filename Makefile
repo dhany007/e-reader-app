@@ -1,5 +1,5 @@
 IMAGE = adipatidhany/aksara:latest
-PEM   = ~/Desktop/ssh-keys/ssh-biznet.pem
+PEM   = $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))/ssh-key.pem
 VPS   = dhany007@103.93.163.115
 REMOTE_DIR = /home/dhany007/workspace/projects/aksara
 
